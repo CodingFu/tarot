@@ -10,6 +10,12 @@ if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true });
 }
 
+// Create processed cards directory if it doesn't exist
+const processedDir = "./processed_cards";
+if (!fs.existsSync(processedDir)) {
+  fs.mkdirSync(processedDir, { recursive: true });
+}
+
 async function processCard(cardPath: string, cardName: string): Promise<void> {
   try {
     console.log(`Processing ${cardName}...`);
@@ -24,12 +30,13 @@ async function processCard(cardPath: string, cardName: string): Promise<void> {
       model: "gpt-image-1",
       image: imageFile,
       prompt:
-        "Redraw this tarot card in Studio Ghibli style, maintaining the same symbolic elements and composition but with the characteristic soft, whimsical, and nature-inspired aesthetic of Studio Ghibli films. Keep the mystical and spiritual essence of the tarot card while adding Ghibli's signature dreamy atmosphere, gentle colors, and organic flowing lines. Make sure that resulting image is pushed to the edge of the canvas",
+        "Redraw this tarot card in Studio Ghibli style, maintaining the same symbolic elements and composition but with the characteristic soft, whimsical, and nature-inspired aesthetic of Studio Ghibli films. Keep the mystical and spiritual essence of the tarot card while adding Ghibli's signature dreamy atmosphere, gentle colors, and organic flowing lines. Make sure that resulting image is pushed to the edge of the canvas. Feel free to edit out all the NSFW content and make the image more family friendly.",
       size: "1024x1536",
-      background: "transparent",
+      background: "opaque",
     });
 
     // Save the generated image
+    let imageSaved = false;
     if (response.data && response.data[0]?.url) {
       const imageUrl = response.data[0].url;
       console.log(`  📥 Downloading from: ${imageUrl}`);
@@ -46,6 +53,7 @@ async function processCard(cardPath: string, cardName: string): Promise<void> {
       const outputPath = path.join(outputDir, `ghibli-${cardName}`);
       fs.writeFileSync(outputPath, Buffer.from(imageBuffer));
       console.log(`  ✅ Saved: ${outputPath}`);
+      imageSaved = true;
     } else if (response.data && response.data[0]?.b64_json) {
       // Fallback for base64 format (if API returns this format)
       const imageBase64 = response.data[0].b64_json;
@@ -53,9 +61,17 @@ async function processCard(cardPath: string, cardName: string): Promise<void> {
       const outputPath = path.join(outputDir, `ghibli-${cardName}`);
       fs.writeFileSync(outputPath, imageBytes);
       console.log(`  ✅ Saved: ${outputPath}`);
+      imageSaved = true;
     } else {
       console.error(`  ❌ No image data received for ${cardName}`);
       console.log("  Response data:", JSON.stringify(response.data, null, 2));
+    }
+
+    // Move original card to processed directory if image was successfully saved
+    if (imageSaved) {
+      const processedPath = path.join(processedDir, cardName);
+      fs.renameSync(cardPath, processedPath);
+      console.log(`  📁 Moved original to: ${processedPath}`);
     }
 
     // Add a small delay to avoid rate limiting
